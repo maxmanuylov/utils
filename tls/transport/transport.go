@@ -16,7 +16,7 @@ func New(caCert, clientCert, clientKey []byte) (*http.Transport, error) {
     transport := http.DefaultTransport.(*http.Transport)
     transport.TLSClientConfig = tlsConfig
 
-    return &transport, nil
+    return transport, nil
 }
 
 func newTLSConfig(caCert, clientCert, clientKey []byte) (*tls.Config, error) {
