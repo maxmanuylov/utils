@@ -4,6 +4,7 @@ import (
     "crypto/tls"
     "crypto/x509"
     "errors"
+    "github.com/maxmanuylov/utils/http/transport"
     "net/http"
 )
 
@@ -13,7 +14,7 @@ func New(caCert, clientCert, clientKey []byte) (*http.Transport, error) {
         return nil, err
     }
 
-    transport := http.DefaultTransport.(*http.Transport)
+    transport := http_transport.NewDefault()
     transport.TLSClientConfig = tlsConfig
 
     return transport, nil
