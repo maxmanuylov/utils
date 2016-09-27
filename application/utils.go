@@ -69,10 +69,11 @@ func dumpStackTraces(dumpsFolder string) {
 
 func createDumpFile(dumpsFolder string) (*os.File, error) {
     now := time.Now()
-    timestamp := fmt.Sprintf("%s%03d", now.Format("20060102150405"), now.Nanosecond() / 1e6)
+    timestamp := fmt.Sprintf("%s%03d", now.Format("20060102-150405"), now.Nanosecond() / 1e6)
+    pid := os.Getpid()
 
     for i := 1; i < 100; i++ {
-        dumpFile, err := os.OpenFile(makeDumpFilePath(dumpsFolder, timestamp, i), os.O_RDWR|os.O_CREATE|os.O_EXCL, os.FileMode(0666))
+        dumpFile, err := os.OpenFile(makeDumpFilePath(dumpsFolder, timestamp, pid, i), os.O_RDWR|os.O_CREATE|os.O_EXCL, os.FileMode(0666))
         if err != nil {
             if os.IsExist(err) {
                 continue
@@ -85,12 +86,12 @@ func createDumpFile(dumpsFolder string) (*os.File, error) {
     return nil, fmt.Errorf("Failed to find unique file name for timestamp = %s", timestamp)
 }
 
-func makeDumpFilePath(dumpsFolder, timestamp string, attempt int) string {
+func makeDumpFilePath(dumpsFolder, timestamp string, pid, attempt int) string {
     var filename string
     if attempt == 1 {
-        filename = fmt.Sprintf("goroutines-%s.txt", timestamp)
+        filename = fmt.Sprintf("%d-%s-goroutines.txt", pid, timestamp)
     } else {
-        filename = fmt.Sprintf("goroutines-%s.%d.txt", timestamp, attempt)
+        filename = fmt.Sprintf("%d-%s-goroutines.%d.txt", pid, timestamp, attempt)
     }
     return filepath.Join(dumpsFolder, filename)
 }
