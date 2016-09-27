@@ -64,7 +64,17 @@ func dumpStackTraces(dumpsFolder string) {
         writers = append(writers, dumpFile)
     }
 
-    io.MultiWriter(writers...).Write(getStackTraces())
+    stackTraces := getStackTraces()
+
+    fmt.Fprintln(os.Stderr)
+    fmt.Fprintln(os.Stderr, "[============================== Goroutines Dump ==============================]")
+    fmt.Fprintln(os.Stderr)
+
+    io.MultiWriter(writers...).Write(stackTraces)
+
+    fmt.Fprintln(os.Stderr)
+    fmt.Fprintln(os.Stderr, "[=============================================================================]")
+    fmt.Fprintln(os.Stderr)
 }
 
 func createDumpFile(dumpsFolder string) (*os.File, error) {
