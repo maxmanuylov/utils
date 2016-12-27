@@ -1,2 +1,5 @@
 /.idea/
 /utils.iml
+
+/vendor/*
+!/vendor/vendor.json
