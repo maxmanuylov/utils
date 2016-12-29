@@ -1,6 +1,7 @@
 package http_transport
 
 import (
+    "context"
     "net"
     "net/http"
 )
@@ -14,10 +15,10 @@ func NewDefault() *http.Transport {
 func NewUnix(socketFile string) *http.Transport {
     transport := NewDefault()
 
-    originalDial := transport.Dial
+    originalDialContext := transport.DialContext
 
-    transport.Dial = func(_, _ string) (net.Conn, error) {
-        return originalDial("unix", socketFile)
+    transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+        return originalDialContext(ctx, "unix", socketFile)
     }
 
     return transport
