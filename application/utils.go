@@ -36,10 +36,14 @@ func DumpStackTracesOnSigQuitTo(dumpsFolder string) {
     }()
 }
 
-func WaitForTermination() {
+func NewTerminationChannel() <-chan os.Signal {
     signalsChannel := make(chan os.Signal, 1)
     notifyOnTermination(signalsChannel)
-    <-signalsChannel
+    return signalsChannel
+}
+
+func WaitForTermination() {
+    <-NewTerminationChannel()
 }
 
 func Exit(errorMessage string) {
