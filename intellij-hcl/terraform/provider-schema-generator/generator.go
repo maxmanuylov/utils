@@ -26,11 +26,11 @@ func Generate(provider *schema.Provider) {
 }
 
 func DoGenerate(provider *schema.Provider, providerName string, outputFilePath string) error {
-    json, err := json.MarshalIndent(&provider_schema{
-        Name: providerName,
-        Type: "provider",
-        Schema: getObjectSchema(provider.Schema),
-        Resources: getResourcesSchema(provider.ResourcesMap),
+    providerJson, err := json.MarshalIndent(&provider_schema{
+        Name:        providerName,
+        Type:        "provider",
+        Provider:    getObjectSchema(provider.Schema),
+        Resources:   getResourcesSchema(provider.ResourcesMap),
         DataSources: getResourcesSchema(provider.DataSourcesMap),
     }, "", "  ")
 
@@ -45,16 +45,12 @@ func DoGenerate(provider *schema.Provider, providerName string, outputFilePath s
 
     defer file.Close()
 
-    _, err = file.Write(json)
+    _, err = file.Write(providerJson)
     if err != nil {
         return err
     }
 
-    if err = file.Sync(); err != nil {
-        return err
-    }
-
-    return nil
+    return file.Sync()
 }
 
 func getResourcesSchema(resources map[string]*schema.Resource) resources_schema {
@@ -62,24 +58,24 @@ func getResourcesSchema(resources map[string]*schema.Resource) resources_schema 
         return nil
     }
 
-    schema := make(resources_schema)
+    resourcesSchema := make(resources_schema)
     for name, resource := range resources {
-        schema[name] = getObjectSchema(resource.Schema)
+        resourcesSchema[name] = getObjectSchema(resource.Schema)
     }
 
-    return schema
+    return resourcesSchema
 }
 
 func getObjectSchema(fields map[string]*schema.Schema) object_schema {
-    schema := make(object_schema)
+    objectSchema := make(object_schema)
     for name, field := range fields {
-        schema[name] = getFieldSchema(field)
+        objectSchema[name] = getFieldSchema(field)
     }
-    return schema
+    return objectSchema
 }
 
 func getFieldSchema(field *schema.Schema) field_schema {
-    schema := make(field_schema, 0)
+    fieldSchema := make(field_schema)
 
     fieldValue := reflect.ValueOf(field).Elem()
     fieldType := fieldValue.Type()
@@ -89,21 +85,41 @@ func getFieldSchema(field *schema.Schema) field_schema {
         option_value := fieldValue.Field(i).Interface()
 
         if !reflect.DeepEqual(option_value, reflect.Zero(option.Type).Interface()) {
-            schema = append(schema, &field_option_schema{
-                Name: option.Name,
-                Type: option.Type.String(),
-                Value: fmt.Sprintf("%v", option_value),
-            })
+            fieldSchema[option.Name] = option_value
         }
     }
 
-    return schema
+    fieldSchema["Type"] = field.Type.String()
+
+    if field.Default != nil {
+        defaultValue := reflect.ValueOf(field.Default)
+        fieldSchema["Default"] = &default_value_schema{
+            Type:  defaultValue.Type().String(),
+            Value: fmt.Sprintf("%v", defaultValue.Interface()),
+        }
+    }
+
+    if field.Elem != nil {
+        if schemaElem, ok := field.Elem.(*schema.Schema); ok {
+            fieldSchema["Elem"] = &elem_schema{
+                Type:     "SchemaElements",
+                ElemType: schemaElem.Type.String(),
+            }
+        } else if resourceElem, ok := field.Elem.(*schema.Resource); ok {
+            fieldSchema["Elem"] = &elem_schema{
+                Type: "SchemaInfo",
+                Info: getObjectSchema(resourceElem.Schema),
+            }
+        }
+    }
+
+    return fieldSchema
 }
 
 type provider_schema struct {
     Name        string           `json:"name"`
     Type        string           `json:"type"`
-    Schema      object_schema    `json:"schema"`
+    Provider    object_schema    `json:"provider"`
     Resources   resources_schema `json:"resources,omitempty"`
     DataSources resources_schema `json:"data-sources,omitempty"`
 }
@@ -112,10 +128,15 @@ type resources_schema map[string]object_schema
 
 type object_schema map[string]field_schema
 
-type field_schema []*field_option_schema
+type field_schema map[string]interface{}
 
-type field_option_schema struct {
-    Name  string `json:"name"`
+type default_value_schema struct {
     Type  string `json:"type"`
     Value string `json:"value"`
+}
+
+type elem_schema struct {
+    Type     string        `json:"type"`
+    ElemType string        `json:"elements-type,omitempty"`
+    Info     object_schema `json:"info,omitempty"`
 }
