@@ -82,6 +82,10 @@ func getFieldSchema(field *schema.Schema) field_schema {
 
     for i := 0; i < fieldValue.NumField(); i++ {
         option := fieldType.Field(i)
+        if option.Type.Kind() == reflect.Func {
+            continue
+        }
+
         option_value := fieldValue.Field(i).Interface()
 
         if !reflect.DeepEqual(option_value, reflect.Zero(option.Type).Interface()) {
