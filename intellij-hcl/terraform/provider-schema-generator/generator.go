@@ -124,8 +124,8 @@ type provider_schema struct {
     Name        string           `json:"name"`
     Type        string           `json:"type"`
     Provider    object_schema    `json:"provider"`
-    Resources   resources_schema `json:"resources,omitempty"`
-    DataSources resources_schema `json:"data-sources,omitempty"`
+    Resources   resources_schema `json:"resources"`
+    DataSources resources_schema `json:"data-sources"`
 }
 
 type resources_schema map[string]object_schema
