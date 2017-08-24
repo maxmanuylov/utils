@@ -54,11 +54,8 @@ func DoGenerate(provider *schema.Provider, providerName string, outputFilePath s
 }
 
 func getResourcesSchema(resources map[string]*schema.Resource) resources_schema {
-    if resources == nil {
-        return nil
-    }
-
     resourcesSchema := make(resources_schema)
+
     for name, resource := range resources {
         resourcesSchema[name] = getObjectSchema(resource.Schema)
     }
