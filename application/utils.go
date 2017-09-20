@@ -3,6 +3,7 @@ package application
 import (
     "fmt"
     "os"
+    "strings"
 )
 
 func Run(app func() error) {
@@ -12,8 +13,16 @@ func Run(app func() error) {
 }
 
 func Switch(apps map[string]func()) {
+    doSwitch("Application", apps)
+}
+
+func SwitchCommand(apps map[string]func()) {
+    doSwitch("Command", apps)
+}
+
+func doSwitch(kind string, apps map[string]func()) {
     if len(os.Args) < 2 {
-        Exit("Application is not specified")
+        Exit(fmt.Sprintf("%s is not specified", kind))
     }
 
     appName := os.Args[1]
@@ -21,7 +30,7 @@ func Switch(apps map[string]func()) {
 
     app, ok := apps[appName]
     if !ok {
-        Exit(fmt.Sprintf("Unknown application: %s", appName))
+        Exit(fmt.Sprintf("Unknown %s: %s", strings.ToLower(kind), appName))
     }
 
 	DumpStackTracesOnSigQuit(appName)
