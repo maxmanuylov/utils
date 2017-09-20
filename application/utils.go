@@ -30,7 +30,14 @@ func doSwitch(kind string, apps map[string]func()) {
 
     app, ok := apps[appName]
     if !ok {
-        Exit(fmt.Sprintf("Unknown %s: %s", strings.ToLower(kind), appName))
+        lowerKind := strings.ToLower(kind)
+
+        appNames := make([]string, 0, len(apps))
+        for app := range apps {
+            appNames = append(appNames, app)
+        }
+
+        Exit(fmt.Sprintf("Unknown %s: %s; available %ss are \"%s\"", lowerKind, appName, lowerKind, strings.Join(appNames, "\", \"")))
     }
 
 	DumpStackTracesOnSigQuit(appName)
