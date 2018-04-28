@@ -21,18 +21,20 @@ func New(caCert, clientCert, clientKey []byte) (*http.Transport, error) {
 }
 
 func newTLSConfig(caCert, clientCert, clientKey []byte) (*tls.Config, error) {
-    caPool := x509.NewCertPool()
-    if !caPool.AppendCertsFromPEM(caCert) {
+    config := &tls.Config{RootCAs: x509.NewCertPool()}
+
+    if !config.RootCAs.AppendCertsFromPEM(caCert) {
         return nil, errors.New("No CA certificate found")
     }
 
-    certificate, err := tls.X509KeyPair(clientCert, clientKey)
-    if err != nil {
-        return nil, err
+    if clientCert != nil && clientKey != nil {
+        certificate, err := tls.X509KeyPair(clientCert, clientKey)
+        if err != nil {
+            return nil, err
+        }
+
+        config.Certificates = []tls.Certificate{certificate}
     }
 
-    return &tls.Config{
-        Certificates: []tls.Certificate{certificate},
-        RootCAs: caPool,
-    }, nil
+    return config, nil
 }

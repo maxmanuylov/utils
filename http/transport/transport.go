@@ -23,3 +23,20 @@ func NewUnix(socketFile string) *http.Transport {
 
     return transport
 }
+
+func WithAuth(baseTransport http.RoundTripper, authHeader string) http.RoundTripper {
+    return &authTransport{
+        baseTransport: baseTransport,
+        authHeader:    authHeader,
+    }
+}
+
+type authTransport struct {
+    baseTransport http.RoundTripper
+    authHeader    string
+}
+
+func (at *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+    req.Header.Set("Authorization", at.authHeader)
+    return at.baseTransport.RoundTrip(req)
+}
