@@ -6,39 +6,46 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"time"
 )
 
-const defaultLogsFolder = "/var/log"
+type DumpFunc func() []byte
+type CancelFunc func()
 
-func DumpStackTracesOnSigQuit(appName string) error {
-	return DumpStackTracesOnSigQuitTo(filepath.Join(defaultLogsFolder, appName, "dumps"))
+func DumpOnSigQuit(appName, dumpKind string, dumpFunc DumpFunc) (CancelFunc, error) {
+	return DumpOnSigQuitTo(filepath.Join("/var/log", appName, "dumps"), dumpKind, dumpFunc)
 }
 
-func DumpStackTracesOnSigQuitToUserHome(relativePath string) error {
+func DumpOnSigQuitToUserHome(appName, dumpKind string, dumpFunc DumpFunc) (CancelFunc, error) {
 	userHomeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("Failed to detect user home dir: %s", err.Error())
+		return nil, fmt.Errorf("Failed to detect user home dir: %s", err.Error())
 	}
 
-	return DumpStackTracesOnSigQuitTo(filepath.Join(userHomeDir, relativePath))
+	return DumpOnSigQuitTo(filepath.Join(userHomeDir, ".dumps", appName), dumpKind, dumpFunc)
 }
 
-func DumpStackTracesOnSigQuitTo(dumpsFolder string) error {
+func DumpOnSigQuitTo(dumpsFolder, dumpKind string, dumpFunc DumpFunc) (CancelFunc, error) {
+	if err := CreateDumpsFolder(dumpsFolder); err != nil {
+		return nil, err
+	}
+
+	return DoOnSigQuit(func() {
+		if err := Dump(dumpsFolder, dumpKind, dumpFunc); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err.Error())
+		}
+	}), nil
+}
+
+func CreateDumpsFolder(dumpsFolder string) error {
 	if err := os.MkdirAll(dumpsFolder, os.FileMode(777)); err != nil {
 		return fmt.Errorf("Failed to create dumps folder (%s): %v\n", dumpsFolder, err)
 	}
-
-	DoOnSigQuit(func() {
-		DumpStackTraces(dumpsFolder)
-	})
-
 	return nil
 }
 
-func DoOnSigQuit(f func()) {
+func DoOnSigQuit(f func()) CancelFunc {
 	signalsChannel := make(chan os.Signal, 10)
 	notifyOnTermination(signalsChannel)
 	signal.Notify(signalsChannel, syscall.SIGQUIT)
@@ -51,41 +58,50 @@ func DoOnSigQuit(f func()) {
 			go f()
 		}
 	}()
+
+	return func() {
+		signal.Stop(signalsChannel)
+		close(signalsChannel)
+	}
 }
 
-func DumpStackTraces(dumpsFolder string) {
+func Dump(dumpsFolder, dumpKind string, dumpFunc DumpFunc) (err error) {
 	writers := make([]io.Writer, 1, 2)
 	writers[0] = os.Stderr
 
-	dumpFile, err := createDumpFile(dumpsFolder)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create dump file: %v\n", err)
+	dumpFile, _err := createDumpFile(dumpsFolder, dumpKind)
+	if _err != nil {
+		err = fmt.Errorf("Failed to create dump file: %v\n", _err)
 	} else {
-		defer dumpFile.Close()
-		defer dumpFile.Sync()
+		defer func() {
+			_ = dumpFile.Sync()
+			_ = dumpFile.Close()
+		}()
 		writers = append(writers, dumpFile)
 	}
 
-	stackTraces := GetStackTraces()
+	dump := dumpFunc()
 
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "[============================== Goroutines Dump ==============================]")
-	fmt.Fprintln(os.Stderr)
+	_, _ = fmt.Fprintln(os.Stderr)
+	_, _ = fmt.Fprintf(os.Stderr, "[============================== Dump[%s] ==============================]\n", dumpKind)
+	_, _ = fmt.Fprintln(os.Stderr)
 
-	io.MultiWriter(writers...).Write(stackTraces)
+	_, _ = io.MultiWriter(writers...).Write(dump)
 
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "[=============================================================================]")
-	fmt.Fprintln(os.Stderr)
+	_, _ = fmt.Fprintln(os.Stderr)
+	_, _ = fmt.Fprintln(os.Stderr, "[=============================================================================]")
+	_, _ = fmt.Fprintln(os.Stderr)
+
+	return
 }
 
-func createDumpFile(dumpsFolder string) (*os.File, error) {
+func createDumpFile(dumpsFolder, dumpKind string) (*os.File, error) {
 	now := time.Now()
 	timestamp := fmt.Sprintf("%s%03d", now.Format("20060102-150405"), now.Nanosecond()/1e6)
 	pid := os.Getpid()
 
 	for i := 1; i < 100; i++ {
-		dumpFile, err := os.OpenFile(makeDumpFilePath(dumpsFolder, timestamp, pid, i), os.O_RDWR|os.O_CREATE|os.O_EXCL, os.FileMode(0666))
+		dumpFile, err := os.OpenFile(makeDumpFilePath(dumpsFolder, dumpKind, timestamp, pid, i), os.O_RDWR|os.O_CREATE|os.O_EXCL, os.FileMode(0666))
 		if err != nil {
 			if os.IsExist(err) {
 				continue
@@ -98,28 +114,12 @@ func createDumpFile(dumpsFolder string) (*os.File, error) {
 	return nil, fmt.Errorf("Failed to find unique file name for timestamp = %s", timestamp)
 }
 
-func makeDumpFilePath(dumpsFolder, timestamp string, pid, attempt int) string {
+func makeDumpFilePath(dumpsFolder, dumpKind, timestamp string, pid, attempt int) string {
 	var filename string
 	if attempt == 1 {
-		filename = fmt.Sprintf("%d-%s-goroutines.txt", pid, timestamp)
+		filename = fmt.Sprintf("%d-%s-%s.txt", pid, timestamp, dumpKind)
 	} else {
-		filename = fmt.Sprintf("%d-%s-goroutines.%d.txt", pid, timestamp, attempt)
+		filename = fmt.Sprintf("%d-%s-%s.%d.txt", pid, timestamp, dumpKind, attempt)
 	}
 	return filepath.Join(dumpsFolder, filename)
-}
-
-func GetStackTraces() []byte {
-	buf := make([]byte, 1024+1024*runtime.NumGoroutine())
-
-	for i := 0; i < 10; i++ {
-		if i != 0 {
-			buf = make([]byte, 2*len(buf))
-		}
-
-		if n := runtime.Stack(buf, true); n < len(buf) {
-			return buf[:n]
-		}
-	}
-
-	return buf
 }
