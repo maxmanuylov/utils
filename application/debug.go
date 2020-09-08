@@ -39,7 +39,7 @@ func DumpOnSigQuitTo(dumpsFolder, dumpKind string, dumpFunc DumpFunc) (CancelFun
 }
 
 func CreateDumpsFolder(dumpsFolder string) error {
-	if err := os.MkdirAll(dumpsFolder, os.FileMode(777)); err != nil {
+	if err := os.MkdirAll(dumpsFolder, os.FileMode(0777)); err != nil {
 		return fmt.Errorf("Failed to create dumps folder (%s): %v\n", dumpsFolder, err)
 	}
 	return nil
