@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"syscall"
 	"time"
 )
 
@@ -48,11 +47,11 @@ func CreateDumpsFolder(dumpsFolder string) error {
 func DoOnSigQuit(f func()) CancelFunc {
 	signalsChannel := make(chan os.Signal, 10)
 	notifyOnTermination(signalsChannel)
-	signal.Notify(signalsChannel, syscall.SIGQUIT)
+	signal.Notify(signalsChannel, sigQuit)
 
 	go func() {
 		for sig := range signalsChannel {
-			if sig != syscall.SIGQUIT {
+			if sig != sigQuit {
 				break
 			}
 			go f()
