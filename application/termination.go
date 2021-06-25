@@ -1,6 +1,8 @@
 package application
 
 import (
+	"context"
+	"github.com/maxmanuylov/utils"
 	"os"
 	"os/signal"
 )
@@ -34,4 +36,19 @@ func WaitForTermination() {
 
 func notifyOnTermination(c chan<- os.Signal) {
 	signal.Notify(c, sigInt, sigTerm)
+}
+
+func Context(ctx context.Context) context.Context {
+	tw := NewTerminationWatcher()
+	utils.Defer(ctx, tw.Stop)
+
+	appCtx, cancel := context.WithCancel(ctx)
+
+	go func() {
+		if _, ok := <-tw.C; ok {
+			cancel()
+		}
+	}()
+
+	return appCtx
 }
