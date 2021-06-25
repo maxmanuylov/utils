@@ -38,17 +38,16 @@ func notifyOnTermination(c chan<- os.Signal) {
 	signal.Notify(c, sigInt, sigTerm)
 }
 
-func Context(ctx context.Context) context.Context {
+func Context(ctx context.Context) (context.Context, context.CancelFunc) {
 	tw := NewTerminationWatcher()
-	utils.Defer(ctx, tw.Stop)
 
 	appCtx, cancel := context.WithCancel(ctx)
+	utils.Defer(appCtx, tw.Stop)
 
 	go func() {
-		if _, ok := <-tw.C; ok {
-			cancel()
-		}
+		<-tw.C
+		cancel()
 	}()
 
-	return appCtx
+	return appCtx, cancel
 }
