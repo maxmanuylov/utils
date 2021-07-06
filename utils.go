@@ -17,3 +17,9 @@ func Defer(ctx context.Context, action func()) {
 		}()
 	}
 }
+
+func DeferClose(ctx context.Context, closer io.Closer) {
+	Defer(ctx, func() {
+		Close(closer)
+	})
+}
